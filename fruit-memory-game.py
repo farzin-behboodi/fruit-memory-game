@@ -6,7 +6,7 @@ import pygame
 
 pygame.mixer.pre_init(44100, -16, 1, 512)
 pygame.init()
-WIDTH, HEIGHT = 940, 920
+WIDTH, HEIGHT = 940, 930
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Fruit Memory Deluxe")
 clock = pygame.time.Clock()
@@ -34,6 +34,8 @@ SND_MATCH = make_tone(520, 1040, 0.22, 0.3)
 SND_MISS = make_tone(240, 140, 0.20, 0.2)
 SND_CLICK = make_tone(480, 650, 0.06, 0.2)
 SND_WIN = make_tone(440, 880, 0.45, 0.35)
+SND_LOSE = make_tone(320, 110, 0.55, 0.35)
+SND_TICK = make_tone(750, 750, 0.05, 0.15)
 
 
 def play_snd(snd):
@@ -55,17 +57,15 @@ FRUITS = [
     "pear",
     "blueberry",
     "kiwi",
+    "banana",
+    "pineapple",
+    "avocado",
+    "coconut",
+    "peach",
+    "plum",
 ]
 
-PLATES = [
-    (255, 250, 240),
-    (255, 232, 200),
-    (215, 245, 255),
-    (225, 255, 220),
-    (250, 220, 250),
-]
-
-ALL_ITEMS = [(f, p) for f in FRUITS for p in PLATES]
+TIME_LIMITS = {4: 45, 6: 100, 8: 180, 10: 300}
 
 
 def draw_fruit_graphic(surface, fruit, cx, cy, r):
@@ -75,26 +75,26 @@ def draw_fruit_graphic(surface, fruit, cx, cy, r):
         pygame.draw.line(surface, (110, 65, 25), (cx, cy - r // 2), (cx, cy - r - r // 4), max(2, r // 5))
         pygame.draw.ellipse(surface, (45, 190, 55), (cx, cy - r - r // 6, r // 2, r // 3))
     elif fruit == "orange":
-        pygame.draw.circle(surface, (255, 145, 0), (cx, cy + r // 8), r)
-        pygame.draw.circle(surface, (255, 205, 95), (cx - r // 3, cy - r // 5), max(2, r // 4))
+        pygame.draw.circle(surface, (255, 140, 0), (cx, cy + r // 8), r)
+        pygame.draw.circle(surface, (255, 200, 90), (cx - r // 3, cy - r // 5), max(2, r // 4))
         pygame.draw.ellipse(surface, (45, 190, 55), (cx - r // 4, cy - r, r // 2, r // 3))
     elif fruit == "watermelon":
         pygame.draw.circle(surface, (35, 160, 50), (cx, cy), r)
         pygame.draw.circle(surface, (185, 235, 175), (cx, cy), int(r * 0.88))
         pygame.draw.circle(surface, (240, 50, 65), (cx, cy), int(r * 0.78))
         for dx, dy in [(-1, -1), (1, -1), (0, 1), (-1, 1), (1, 1)]:
-            pygame.draw.circle(surface, (30, 30, 30), (cx + dx * r // 3, cy + dy * r // 3), max(1, r // 8))
+            pygame.draw.circle(surface, (25, 25, 25), (cx + dx * r // 3, cy + dy * r // 3), max(1, r // 8))
     elif fruit == "grapes":
         sr = max(3, int(r * 0.38))
         offsets = [(-sr, -sr // 2), (0, -sr // 2), (sr, -sr // 2), (-sr // 2, sr // 2), (sr // 2, sr // 2), (0, int(sr * 1.4))]
         for ox, oy in offsets:
-            pygame.draw.circle(surface, (145, 50, 175), (cx + ox, cy + oy), sr)
-            pygame.draw.circle(surface, (195, 120, 220), (cx + ox - sr // 4, cy + oy - sr // 4), max(1, sr // 3))
+            pygame.draw.circle(surface, (145, 45, 180), (cx + ox, cy + oy), sr)
+            pygame.draw.circle(surface, (200, 130, 230), (cx + ox - sr // 4, cy + oy - sr // 4), max(1, sr // 3))
         pygame.draw.line(surface, (100, 60, 20), (cx, cy - sr), (cx, cy - r), max(2, r // 6))
     elif fruit == "strawberry":
         pts = [(cx - r, cy - r // 2), (cx + r, cy - r // 2), (cx, cy + r)]
-        pygame.draw.polygon(surface, (235, 35, 60), pts)
-        pygame.draw.ellipse(surface, (235, 35, 60), (cx - r, cy - r, r * 2, r))
+        pygame.draw.polygon(surface, (235, 30, 55), pts)
+        pygame.draw.ellipse(surface, (235, 30, 55), (cx - r, cy - r, r * 2, r))
         pygame.draw.ellipse(surface, (45, 190, 55), (cx - r // 2, cy - r - r // 6, r, r // 2))
         for dx, dy in [(-1, 0), (1, 0), (0, 1), (0, -1)]:
             pygame.draw.circle(surface, (255, 225, 110), (cx + dx * r // 3, cy + dy * r // 3), max(1, r // 8))
@@ -102,31 +102,58 @@ def draw_fruit_graphic(surface, fruit, cx, cy, r):
         cr = max(3, int(r * 0.48))
         pygame.draw.line(surface, (45, 170, 45), (cx - cr, cy + cr // 2), (cx, cy - r), max(2, r // 7))
         pygame.draw.line(surface, (45, 170, 45), (cx + cr, cy + cr // 2), (cx, cy - r), max(2, r // 7))
-        pygame.draw.circle(surface, (215, 20, 45), (cx - cr, cy + cr // 2), cr)
-        pygame.draw.circle(surface, (215, 20, 45), (cx + cr, cy + cr // 2), cr)
+        pygame.draw.circle(surface, (210, 15, 40), (cx - cr, cy + cr // 2), cr)
+        pygame.draw.circle(surface, (210, 15, 40), (cx + cr, cy + cr // 2), cr)
         pygame.draw.circle(surface, (255, 130, 140), (cx - cr - cr // 4, cy + cr // 4), max(1, cr // 3))
         pygame.draw.circle(surface, (255, 130, 140), (cx + cr - cr // 4, cy + cr // 4), max(1, cr // 3))
     elif fruit == "lemon":
         rect = (cx - r, cy - int(r * 0.7), r * 2, int(r * 1.4))
-        pygame.draw.ellipse(surface, (250, 220, 25), rect)
-        pygame.draw.circle(surface, (250, 220, 25), (cx - r, cy), max(2, r // 4))
-        pygame.draw.circle(surface, (250, 220, 25), (cx + r, cy), max(2, r // 4))
+        pygame.draw.ellipse(surface, (250, 220, 20), rect)
+        pygame.draw.circle(surface, (250, 220, 20), (cx - r, cy), max(2, r // 4))
+        pygame.draw.circle(surface, (250, 220, 20), (cx + r, cy), max(2, r // 4))
         pygame.draw.ellipse(surface, (255, 245, 150), (cx - r // 2, cy - r // 3, r, r // 3))
     elif fruit == "pear":
-        pygame.draw.circle(surface, (165, 210, 45), (cx, cy + r // 3), int(r * 0.75))
-        pygame.draw.circle(surface, (165, 210, 45), (cx, cy - r // 3), int(r * 0.5))
+        pygame.draw.circle(surface, (160, 210, 40), (cx, cy + r // 3), int(r * 0.75))
+        pygame.draw.circle(surface, (160, 210, 40), (cx, cy - r // 3), int(r * 0.5))
         pygame.draw.circle(surface, (215, 240, 120), (cx - r // 4, cy + r // 4), r // 4)
         pygame.draw.line(surface, (100, 60, 20), (cx, cy - int(r * 0.8)), (cx, cy - r - r // 5), max(2, r // 6))
     elif fruit == "blueberry":
-        pygame.draw.circle(surface, (45, 90, 200), (cx, cy + r // 8), r)
+        pygame.draw.circle(surface, (40, 85, 205), (cx, cy + r // 8), r)
         pygame.draw.circle(surface, (110, 160, 250), (cx - r // 3, cy - r // 6), max(2, r // 4))
-        pygame.draw.circle(surface, (25, 45, 110), (cx, cy - r // 3), max(2, r // 3))
+        pygame.draw.circle(surface, (20, 40, 110), (cx, cy - r // 3), max(2, r // 3))
     elif fruit == "kiwi":
         pygame.draw.circle(surface, (135, 85, 40), (cx, cy), r)
-        pygame.draw.circle(surface, (140, 200, 55), (cx, cy), int(r * 0.82))
+        pygame.draw.circle(surface, (135, 200, 50), (cx, cy), int(r * 0.82))
         pygame.draw.circle(surface, (230, 250, 190), (cx, cy), int(r * 0.36))
         for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
             pygame.draw.circle(surface, (25, 25, 25), (cx + dx * int(r * 0.55), cy + dy * int(r * 0.55)), max(1, r // 9))
+    elif fruit == "banana":
+        pygame.draw.arc(surface, (250, 215, 25), (cx - r, cy - r, r * 2, r * 2), 0.4, 2.7, max(4, int(r * 0.55)))
+        pygame.draw.arc(surface, (255, 240, 120), (cx - r, cy - r, r * 2, r * 2), 0.6, 2.5, max(2, int(r * 0.2)))
+    elif fruit == "pineapple":
+        pts = [(cx, cy - r - r // 3), (cx - r // 2, cy - r // 2), (cx + r // 2, cy - r // 2)]
+        pygame.draw.polygon(surface, (40, 175, 55), pts)
+        rect = (cx - int(r * 0.75), cy - r // 2, int(r * 1.5), int(r * 1.5))
+        pygame.draw.ellipse(surface, (240, 175, 25), rect)
+        pygame.draw.line(surface, (185, 115, 15), (cx - r // 2, cy), (cx + r // 2, cy + r // 2), max(1, r // 8))
+        pygame.draw.line(surface, (185, 115, 15), (cx + r // 2, cy), (cx - r // 2, cy + r // 2), max(1, r // 8))
+    elif fruit == "avocado":
+        pygame.draw.ellipse(surface, (45, 120, 45), (cx - int(r * 0.8), cy - r, int(r * 1.6), r * 2))
+        pygame.draw.ellipse(surface, (175, 225, 100), (cx - int(r * 0.62), cy - int(r * 0.8), int(r * 1.24), int(r * 1.6)))
+        pygame.draw.circle(surface, (115, 65, 30), (cx, cy + r // 5), int(r * 0.42))
+        pygame.draw.circle(surface, (160, 105, 60), (cx - r // 8, cy + r // 8), max(1, r // 7))
+    elif fruit == "coconut":
+        pygame.draw.circle(surface, (105, 62, 30), (cx, cy), r)
+        pygame.draw.circle(surface, (245, 245, 245), (cx, cy), int(r * 0.78))
+        pygame.draw.circle(surface, (200, 235, 250), (cx, cy), int(r * 0.42))
+    elif fruit == "peach":
+        pygame.draw.circle(surface, (255, 125, 95), (cx - r // 5, cy + r // 8), int(r * 0.82))
+        pygame.draw.circle(surface, (255, 145, 110), (cx + r // 5, cy + r // 8), int(r * 0.82))
+        pygame.draw.ellipse(surface, (55, 185, 60), (cx, cy - r, r // 2, r // 3))
+    elif fruit == "plum":
+        pygame.draw.ellipse(surface, (115, 35, 135), (cx - int(r * 0.85), cy - int(r * 0.9), int(r * 1.7), int(r * 1.85)))
+        pygame.draw.circle(surface, (175, 95, 195), (cx - r // 3, cy - r // 4), max(2, r // 4))
+        pygame.draw.line(surface, (100, 60, 25), (cx, cy - int(r * 0.85)), (cx + r // 4, cy - r - r // 5), max(2, r // 6))
 
 
 def draw_star(surface, cx, cy, r, color):
@@ -169,7 +196,7 @@ def create_game_bg():
         pygame.draw.circle(surf, (45, 125, 42), (i, 15), 28)
         pygame.draw.circle(surf, (45, 125, 42), (i, HEIGHT - 15), 28)
 
-    board_rect = pygame.Rect(35, 95, WIDTH - 70, HEIGHT - 120)
+    board_rect = pygame.Rect(35, 118, WIDTH - 70, HEIGHT - 140)
     pygame.draw.rect(surf, (30, 65, 25), (board_rect.x + 8, board_rect.y + 10, board_rect.w, board_rect.h), border_radius=28)
     pygame.draw.rect(surf, (155, 95, 45), board_rect, border_radius=28)
 
@@ -178,7 +205,7 @@ def create_game_bg():
 
     pygame.draw.rect(surf, (105, 60, 25), board_rect, 8, border_radius=28)
 
-    inner_rect = pygame.Rect(55, 115, WIDTH - 110, HEIGHT - 160)
+    inner_rect = pygame.Rect(55, 138, WIDTH - 110, HEIGHT - 180)
     pygame.draw.rect(surf, (125, 75, 32), inner_rect, border_radius=20)
     pygame.draw.rect(surf, (90, 50, 20), inner_rect, 4, border_radius=20)
     return surf
@@ -225,6 +252,10 @@ class IconSpriteButton:
         elif self.icon_type == "bulb":
             pygame.draw.circle(surf, (255, 245, 130), (cx, cy - 3), int(r * 0.75))
             pygame.draw.rect(surf, (220, 220, 220), (cx - r // 2, cy + r // 2 - 1, r, 6), border_radius=2)
+        elif self.icon_type == "clock":
+            pygame.draw.circle(surf, (255, 255, 255), (cx, cy), r, 3)
+            pygame.draw.line(surf, (255, 255, 255), (cx, cy), (cx, cy - r // 2), 3)
+            pygame.draw.line(surf, (255, 255, 255), (cx, cy), (cx + r // 2, cy), 3)
         return surf
 
     def draw(self, surface, font):
@@ -268,11 +299,11 @@ class LevelCardButton:
                 col = (255, 220, 130) if (r + c) % 2 == 0 else (230, 185, 95)
                 pygame.draw.rect(surf, col, (px + c * cell + 1, py + r * cell + 1, cell - 2, cell - 2), border_radius=2)
 
-        draw_fruit_graphic(surf, self.fruit_icon, w - 52, y_off + 42, 24)
+        draw_fruit_graphic(surf, self.fruit_icon, w - 48, y_off + 40, 22)
 
-        font_big = pygame.font.SysFont("arial", 32, bold=True)
+        font_big = pygame.font.SysFont("arial", 28, bold=True)
         txt = font_big.render(f"{self.grid_size} x {self.grid_size}", True, (110, 60, 15))
-        surf.blit(txt, (118, y_off + 20))
+        surf.blit(txt, (116, y_off + 16))
         return surf
 
     def draw(self, surface, font, stars, best_score):
@@ -280,12 +311,13 @@ class LevelCardButton:
         y_off = 0 if hover else 3
         surface.blit(self.hover_image if hover else self.image, self.rect.topleft)
 
-        sc_txt = font.render(f"Best: {best_score}", True, (150, 90, 30))
-        surface.blit(sc_txt, (self.rect.x + 118, self.rect.y + y_off + 62))
+        t_limit = TIME_LIMITS[self.grid_size]
+        sc_txt = font.render(f"Time: {t_limit}s  |  Best: {best_score}", True, (150, 90, 30))
+        surface.blit(sc_txt, (self.rect.x + 116, self.rect.y + y_off + 54))
 
         for i in range(3):
             scol = (255, 205, 0) if i < stars else (200, 185, 155)
-            draw_star(surface, self.rect.x + 132 + i * 30, self.rect.y + y_off + 102, 12, scol)
+            draw_star(surface, self.rect.x + 130 + i * 30, self.rect.y + y_off + 98, 12, scol)
 
 
 class FloatingText:
@@ -340,13 +372,12 @@ class Particle:
 
 class Card:
 
-    def __init__(self, x, y, size, fruit, plate_color):
+    def __init__(self, x, y, size, fruit):
         self.x = x
         self.y = y
         self.size = size
         self.rect = pygame.Rect(x, y, size, size)
         self.fruit = fruit
-        self.plate_color = plate_color
         self.revealed = False
         self.matched = False
         self.hint_timer = 0
@@ -356,7 +387,7 @@ class Card:
     def update(self, mouse_pos, force_reveal=False):
         show = self.revealed or self.matched or force_reveal
         target_flip = 1.0 if show else 0.0
-        self.flip_progress += (target_flip - self.flip_progress) * 0.22
+        self.flip_progress += (target_flip - self.flip_progress) * 0.24
 
         if self.hint_timer > 0:
             self.hint_timer -= 1
@@ -390,9 +421,9 @@ class Card:
             border_w = max(3, self.size // 11) if self.hint_timer > 0 else max(2, self.size // 22)
             pygame.draw.rect(card_surf, border_col, (0, 0, self.size, self.size), border_w, border_radius=radius)
         else:
-            pygame.draw.rect(card_surf, self.plate_color, (0, 0, self.size, self.size), border_radius=radius)
-            pygame.draw.circle(card_surf, (255, 255, 255, 170), (self.size // 2, self.size // 2), int(self.size * 0.36))
-            draw_fruit_graphic(card_surf, self.fruit, self.size // 2, self.size // 2, max(6, int(self.size * 0.30)))
+            pygame.draw.rect(card_surf, (255, 250, 240), (0, 0, self.size, self.size), border_radius=radius)
+            pygame.draw.circle(card_surf, (245, 235, 215), (self.size // 2, self.size // 2), int(self.size * 0.36))
+            draw_fruit_graphic(card_surf, self.fruit, self.size // 2, self.size // 2, max(6, int(self.size * 0.31)))
             border_col = (46, 204, 113) if self.matched else (195, 165, 130)
             border_w = max(3, self.size // 13) if self.matched else max(2, self.size // 22)
             pygame.draw.rect(card_surf, border_col, (0, 0, self.size, self.size), border_w, border_radius=radius)
@@ -404,9 +435,9 @@ class Card:
 class Game:
 
     def __init__(self):
-        self.font = pygame.font.SysFont("arial", 20, bold=True)
-        self.med_font = pygame.font.SysFont("arial", 28, bold=True)
-        self.big_font = pygame.font.SysFont("arial", 50, bold=True)
+        self.font = pygame.font.SysFont("arial", 18, bold=True)
+        self.med_font = pygame.font.SysFont("arial", 26, bold=True)
+        self.big_font = pygame.font.SysFont("arial", 48, bold=True)
         self.state = "menu"
         self.grid_size = 4
         self.best_scores = {4: 0, 6: 0, 8: 0, 10: 0}
@@ -419,14 +450,14 @@ class Game:
 
     def setup_menu(self):
         configs = [
-            (4, "apple", WIDTH // 2 - 330, 290),
+            (4, "apple", WIDTH // 2 - 340, 290),
             (6, "watermelon", WIDTH // 2 + 20, 290),
-            (8, "strawberry", WIDTH // 2 - 330, 460),
-            (10, "pineapple" if "pineapple" in FRUITS else "cherry", WIDTH // 2 + 20, 460),
+            (8, "strawberry", WIDTH // 2 - 340, 460),
+            (10, "pineapple", WIDTH // 2 + 20, 460),
         ]
         self.level_cards.clear()
         for sz, fr, x, y in configs:
-            self.level_cards.append(LevelCardButton(x, y, 310, 135, sz, fr))
+            self.level_cards.append(LevelCardButton(x, y, 320, 135, sz, fr))
 
     def start_game(self, size):
         play_snd(SND_CLICK)
@@ -441,45 +472,61 @@ class Game:
         self.combo = 0
         self.peeks_left = 2
         self.hints_left = 3
+        self.time_boosts = 2
         self.wait_time = 0
-        self.start_ticks = pygame.time.get_ticks()
-        self.preview_until = self.start_ticks + 1800
-        self.elapsed = 0
+
+        self.max_time = float(TIME_LIMITS[size])
+        self.time_left = self.max_time
+        self.last_tick_sec = 999
+        self.last_frame_tick = pygame.time.get_ticks()
+        self.preview_until = self.last_frame_tick + 1800
         self.won = False
+        self.lost = False
 
-        self.btn_peek = IconSpriteButton(WIDTH - 275, 16, 56, "eye", (145, 75, 190))
+        self.btn_time = IconSpriteButton(WIDTH - 342, 12, 54, "clock", (40, 165, 135))
+        self.btn_time.badge_count = self.time_boosts
+        self.btn_peek = IconSpriteButton(WIDTH - 276, 12, 54, "eye", (145, 75, 190))
         self.btn_peek.badge_count = self.peeks_left
-        self.btn_hint = IconSpriteButton(WIDTH - 208, 16, 56, "bulb", (230, 145, 25))
+        self.btn_hint = IconSpriteButton(WIDTH - 210, 12, 54, "bulb", (230, 145, 25))
         self.btn_hint.badge_count = self.hints_left
-        self.btn_restart = IconSpriteButton(WIDTH - 141, 16, 56, "reload", (55, 145, 205))
-        self.btn_menu = IconSpriteButton(WIDTH - 74, 16, 56, "home", (215, 70, 65))
+        self.btn_restart = IconSpriteButton(WIDTH - 144, 12, 54, "reload", (55, 145, 205))
+        self.btn_menu = IconSpriteButton(WIDTH - 78, 12, 54, "home", (215, 70, 65))
 
-        self.btn_win_again = IconSpriteButton(WIDTH // 2 - 80, HEIGHT // 2 + 95, 68, "reload", (46, 180, 95))
-        self.btn_win_menu = IconSpriteButton(WIDTH // 2 + 12, HEIGHT // 2 + 95, 68, "home", (215, 70, 65))
+        self.btn_modal_again = IconSpriteButton(WIDTH // 2 - 80, HEIGHT // 2 + 95, 68, "reload", (46, 180, 95))
+        self.btn_modal_menu = IconSpriteButton(WIDTH // 2 + 12, HEIGHT // 2 + 95, 68, "home", (215, 70, 65))
 
         pairs_needed = (size * size) // 2
-        pool = [(f, PLATES[0]) for f in FRUITS] if size == 4 else ALL_ITEMS
-        chosen_items = random.sample(pool, pairs_needed)
-        deck = chosen_items * 2
+        shuffled_fruits = FRUITS[:]
+        random.shuffle(shuffled_fruits)
+        chosen_fruits = [shuffled_fruits[i % len(shuffled_fruits)] for i in range(pairs_needed)]
+        deck = chosen_fruits * 2
         random.shuffle(deck)
 
         gap = max(5, 16 - size)
-        board_size = 730
+        board_size = 715
         card_size = (board_size - (size - 1) * gap) // size
         start_x = (WIDTH - (size * card_size + (size - 1) * gap)) // 2
-        start_y = 125 + (board_size - (size * card_size + (size - 1) * gap)) // 2
+        start_y = 148 + (board_size - (size * card_size + (size - 1) * gap)) // 2
 
         for r in range(size):
             for c in range(size):
                 x = start_x + c * (card_size + gap)
                 y = start_y + r * (card_size + gap)
-                fruit, plate = deck.pop()
-                self.cards.append(Card(x, y, card_size, fruit, plate))
+                fruit = deck.pop()
+                self.cards.append(Card(x, y, card_size, fruit))
 
     def spawn_burst(self, card):
         cols = [(255, 215, 0), (46, 204, 113), (255, 100, 120), (255, 180, 50)]
         for _ in range(28):
             self.particles.append(Particle(card.rect.centerx, card.rect.centery, random.choice(cols)))
+
+    def use_time_boost(self):
+        if self.time_boosts > 0 and pygame.time.get_ticks() > self.preview_until:
+            play_snd(SND_MATCH)
+            self.time_boosts -= 1
+            self.btn_time.badge_count = self.time_boosts
+            self.time_left = min(self.max_time, self.time_left + 15.0)
+            self.float_texts.append(FloatingText(WIDTH // 2, 95, "+15s TIME!", (80, 255, 140)))
 
     def use_peek(self):
         if self.peeks_left > 0 and pygame.time.get_ticks() > self.preview_until:
@@ -497,16 +544,16 @@ class Game:
                 self.btn_hint.badge_count = self.hints_left
                 target = unmatched[0]
                 for c in unmatched[1:]:
-                    if c.fruit == target.fruit and c.plate_color == target.plate_color:
+                    if c.fruit == target.fruit:
                         target.hint_timer = 95
                         c.hint_timer = 95
                         break
 
     def calc_stars(self):
-        pairs = (self.grid_size * self.grid_size) // 2
-        if self.moves <= int(pairs * 1.4):
+        ratio = self.time_left / self.max_time
+        if ratio >= 0.45:
             return 3
-        if self.moves <= int(pairs * 2.0):
+        if ratio >= 0.20:
             return 2
         return 1
 
@@ -517,10 +564,10 @@ class Game:
                     self.start_game(lc.grid_size)
                     break
         elif self.state == "playing":
-            if self.won:
-                if self.btn_win_again.rect.collidepoint(pos):
+            if self.won or self.lost:
+                if self.btn_modal_again.rect.collidepoint(pos):
                     self.start_game(self.grid_size)
-                elif self.btn_win_menu.rect.collidepoint(pos):
+                elif self.btn_modal_menu.rect.collidepoint(pos):
                     play_snd(SND_CLICK)
                     self.state = "menu"
                 return
@@ -532,6 +579,9 @@ class Game:
                 play_snd(SND_CLICK)
                 self.state = "menu"
                 return
+            if self.btn_time.rect.collidepoint(pos):
+                self.use_time_boost()
+                return
             if self.btn_peek.rect.collidepoint(pos):
                 self.use_peek()
                 return
@@ -540,18 +590,28 @@ class Game:
                 return
 
             now = pygame.time.get_ticks()
-            if now < self.preview_until or self.wait_time > 0 or len(self.selected) >= 2:
+            if now < self.preview_until:
+                return
+
+            if self.wait_time > 0:
+                for c in self.selected:
+                    c.revealed = False
+                self.selected.clear()
+                self.wait_time = 0
+
+            if len(self.selected) >= 2:
                 return
 
             for card in self.cards:
                 if card.rect.collidepoint(pos) and not card.revealed and not card.matched:
                     play_snd(SND_FLIP)
                     card.revealed = True
+                    card.hint_timer = 0
                     self.selected.append(card)
                     if len(self.selected) == 2:
                         self.moves += 1
                         c1, c2 = self.selected
-                        if c1.fruit == c2.fruit and c1.plate_color == c2.plate_color:
+                        if c1.fruit == c2.fruit:
                             c1.matched = True
                             c2.matched = True
                             self.combo += 1
@@ -562,12 +622,19 @@ class Game:
                             self.spawn_burst(c2)
                             mid_x = (c1.rect.centerx + c2.rect.centerx) // 2
                             mid_y = (c1.rect.centery + c2.rect.centery) // 2
-                            label = f"+{pts} (COMBO x{self.combo}!)" if self.combo > 1 else f"+{pts}"
+
+                            if self.combo > 1:
+                                self.time_left = min(self.max_time, self.time_left + 2.0)
+                                label = f"+{pts}  COMBO x{self.combo} (+2s!)"
+                            else:
+                                label = f"+{pts}"
                             self.float_texts.append(FloatingText(mid_x, mid_y, label, (255, 235, 60)))
                             self.selected.clear()
 
                             if all(c.matched for c in self.cards):
                                 self.won = True
+                                time_bonus = int(self.time_left) * 15
+                                self.score += time_bonus
                                 play_snd(SND_WIN)
                                 stars = self.calc_stars()
                                 if self.score > self.best_scores[self.grid_size]:
@@ -582,17 +649,29 @@ class Game:
 
     def update(self):
         mouse_pos = pygame.mouse.get_pos()
+        now = pygame.time.get_ticks()
+        dt = (now - getattr(self, "last_frame_tick", now)) / 1000.0
+        self.last_frame_tick = now
+
         for cl in self.clouds:
             cl[0] += cl[2]
             if cl[0] > WIDTH + 100:
                 cl[0] = -120
 
         if self.state == "playing":
-            now = pygame.time.get_ticks()
-            force_show = now < self.preview_until
+            force_show = (now < self.preview_until) or self.lost
 
-            if not self.won and not force_show:
-                self.elapsed = max(0, (now - self.start_ticks - 1800) // 1000)
+            if not self.won and not self.lost and now >= self.preview_until:
+                self.time_left -= dt
+                sec_int = int(math.ceil(self.time_left))
+                if 0 < sec_int <= 10 and sec_int != self.last_tick_sec:
+                    self.last_tick_sec = sec_int
+                    play_snd(SND_TICK)
+
+                if self.time_left <= 0:
+                    self.time_left = 0
+                    self.lost = True
+                    play_snd(SND_LOSE)
 
             for card in self.cards:
                 card.update(mouse_pos, force_show)
@@ -607,11 +686,39 @@ class Game:
                 if ft.life <= 0:
                     self.float_texts.remove(ft)
 
-            if self.wait_time > 0 and now - self.wait_time > 700:
+            if self.wait_time > 0 and now - self.wait_time > 650:
                 for card in self.selected:
                     card.revealed = False
                 self.selected.clear()
                 self.wait_time = 0
+
+    def draw_timer_bar(self, surface):
+        bar_x, bar_y, bar_w, bar_h = 65, 80, WIDTH - 130, 26
+        pygame.draw.rect(surface, (85, 48, 18), (bar_x - 4, bar_y - 4, bar_w + 8, bar_h + 8), border_radius=14)
+        pygame.draw.rect(surface, (45, 25, 10), (bar_x, bar_y, bar_w, bar_h), border_radius=10)
+
+        ratio = max(0.0, min(1.0, self.time_left / self.max_time))
+        fill_w = int(bar_w * ratio)
+
+        if ratio > 0.5:
+            col = (55, 210, 85)
+        elif ratio > 0.22:
+            col = (245, 180, 30)
+        else:
+            flash = (pygame.time.get_ticks() // 180) % 2 == 0
+            col = (245, 45, 45) if flash else (170, 25, 25)
+
+        if fill_w > 6:
+            pygame.draw.rect(surface, col, (bar_x, bar_y, fill_w, bar_h), border_radius=10)
+
+        pygame.draw.circle(surface, (245, 200, 65), (bar_x + 8, bar_y + bar_h // 2), 18)
+        pygame.draw.circle(surface, (120, 65, 15), (bar_x + 8, bar_y + bar_h // 2), 18, 3)
+        pygame.draw.line(surface, (120, 65, 15), (bar_x + 8, bar_y + bar_h // 2), (bar_x + 8, bar_y + bar_h // 2 - 9), 3)
+        pygame.draw.line(surface, (120, 65, 15), (bar_x + 8, bar_y + bar_h // 2), (bar_x + 15, bar_y + bar_h // 2), 3)
+
+        t_str = f"{int(math.ceil(self.time_left))}s"
+        txt = self.font.render(t_str, True, (255, 255, 255))
+        surface.blit(txt, (bar_x + bar_w // 2 - txt.get_width() // 2, bar_y + 2))
 
     def draw(self, surface):
         if self.state == "menu":
@@ -638,17 +745,20 @@ class Game:
         elif self.state == "playing":
             surface.blit(GAME_BG, (0, 0))
 
-            hud_rect = pygame.Rect(35, 14, 570, 62)
-            pygame.draw.rect(surface, (130, 75, 30), hud_rect, border_radius=18)
-            pygame.draw.rect(surface, (245, 225, 185), (hud_rect.x + 4, hud_rect.y + 4, hud_rect.w - 8, hud_rect.h - 8), border_radius=14)
+            hud_rect = pygame.Rect(35, 12, 535, 56)
+            pygame.draw.rect(surface, (130, 75, 30), hud_rect, border_radius=16)
+            pygame.draw.rect(surface, (245, 225, 185), (hud_rect.x + 4, hud_rect.y + 4, hud_rect.w - 8, hud_rect.h - 8), border_radius=12)
 
             stat = self.med_font.render(
-                f"Score: {self.score}    Moves: {self.moves}    Time: {self.elapsed}s",
+                f"Score: {self.score}     Moves: {self.moves}     Combo: x{max(1, self.combo)}",
                 True,
                 (105, 55, 15),
             )
-            surface.blit(stat, (hud_rect.x + 22, hud_rect.centery - stat.get_height() // 2))
+            surface.blit(stat, (hud_rect.x + 20, hud_rect.centery - stat.get_height() // 2))
 
+            self.draw_timer_bar(surface)
+
+            self.btn_time.draw(surface, self.font)
             self.btn_peek.draw(surface, self.font)
             self.btn_hint.draw(surface, self.font)
             self.btn_restart.draw(surface, self.font)
@@ -663,37 +773,50 @@ class Game:
             for ft in self.float_texts:
                 ft.draw(surface)
 
-            if pygame.time.get_ticks() < self.preview_until and not self.won:
+            if pygame.time.get_ticks() < self.preview_until and not self.won and not self.lost:
                 banner = pygame.Rect(WIDTH // 2 - 170, HEIGHT // 2 - 32, 340, 64)
                 pygame.draw.rect(surface, (145, 85, 30), banner, border_radius=18)
                 pygame.draw.rect(surface, (255, 225, 100), banner, 4, border_radius=18)
                 m_txt = self.med_font.render("MEMORIZE CARDS!", True, (255, 245, 190))
                 surface.blit(m_txt, (WIDTH // 2 - m_txt.get_width() // 2, HEIGHT // 2 - m_txt.get_height() // 2))
 
-            if self.won:
+            if self.won or self.lost:
                 overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-                overlay.fill((20, 35, 15, 190))
+                overlay.fill((20, 35, 15, 195))
                 surface.blit(overlay, (0, 0))
 
                 modal = pygame.Rect(WIDTH // 2 - 230, HEIGHT // 2 - 185, 460, 370)
                 pygame.draw.rect(surface, (150, 90, 38), modal, border_radius=26)
                 pygame.draw.rect(surface, (250, 238, 205), (modal.x + 10, modal.y + 10, modal.w - 20, modal.h - 20), border_radius=20)
 
-                win = self.big_font.render("STAGE CLEAR!", True, (195, 105, 20))
-                surface.blit(win, (WIDTH // 2 - win.get_width() // 2, modal.y + 28))
+                if self.won:
+                    win = self.big_font.render("STAGE CLEAR!", True, (40, 165, 65))
+                    surface.blit(win, (WIDTH // 2 - win.get_width() // 2, modal.y + 28))
 
-                stars = self.calc_stars()
-                for i in range(3):
-                    scol = (255, 205, 0) if i < stars else (210, 195, 165)
-                    draw_star(surface, WIDTH // 2 - 75 + i * 75, modal.y + 125, 28, scol)
+                    stars = self.calc_stars()
+                    for i in range(3):
+                        scol = (255, 205, 0) if i < stars else (210, 195, 165)
+                        draw_star(surface, WIDTH // 2 - 75 + i * 75, modal.y + 125, 28, scol)
 
-                s_txt = self.med_font.render(f"Score: {self.score}", True, (100, 55, 15))
-                m_txt = self.font.render(f"Moves: {self.moves}   |   Time: {self.elapsed} Seconds", True, (130, 80, 35))
+                    s_txt = self.med_font.render(f"Final Score: {self.score}", True, (100, 55, 15))
+                    m_txt = self.font.render(f"Moves: {self.moves}   |   Time Left: {int(self.time_left)}s", True, (130, 80, 35))
+                else:
+                    lose = self.big_font.render("TIME'S UP!", True, (215, 45, 45))
+                    surface.blit(lose, (WIDTH // 2 - lose.get_width() // 2, modal.y + 32))
+
+                    pygame.draw.circle(surface, (220, 65, 55), (WIDTH // 2, modal.y + 125), 34)
+                    pygame.draw.circle(surface, (255, 255, 255), (WIDTH // 2, modal.y + 125), 34, 4)
+                    pygame.draw.line(surface, (255, 255, 255), (WIDTH // 2, modal.y + 125), (WIDTH // 2, modal.y + 105), 4)
+                    pygame.draw.line(surface, (255, 255, 255), (WIDTH // 2, modal.y + 125), (WIDTH // 2 + 14, modal.y + 125), 4)
+
+                    s_txt = self.med_font.render(f"Score: {self.score}", True, (100, 55, 15))
+                    m_txt = self.font.render("You ran out of time! Try again!", True, (165, 55, 40))
+
                 surface.blit(s_txt, (WIDTH // 2 - s_txt.get_width() // 2, modal.y + 180))
                 surface.blit(m_txt, (WIDTH // 2 - m_txt.get_width() // 2, modal.y + 225))
 
-                self.btn_win_again.draw(surface, self.font)
-                self.btn_win_menu.draw(surface, self.font)
+                self.btn_modal_again.draw(surface, self.font)
+                self.btn_modal_menu.draw(surface, self.font)
 
 
 def main():
