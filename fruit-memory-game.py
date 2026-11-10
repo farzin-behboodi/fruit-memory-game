@@ -1,5 +1,7 @@
 from array import array
+import json
 import math
+import os
 import random
 import sys
 import pygame
@@ -10,6 +12,8 @@ WIDTH, HEIGHT = 940, 930
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Fruit Memory Deluxe")
 clock = pygame.time.Clock()
+
+SAVE_FILE = "leaderboard.json"
 
 
 def make_tone(f1, f2, dur, vol=0.25):
@@ -166,6 +170,21 @@ def draw_star(surface, cx, cy, r, color):
     pygame.draw.polygon(surface, (120, 80, 10), pts, 2)
 
 
+def draw_medal(surface, cx, cy, rank):
+    if rank == 1:
+        col, border = (255, 215, 0), (185, 135, 0)
+    elif rank == 2:
+        col, border = (215, 220, 230), (130, 135, 145)
+    else:
+        col, border = (215, 140, 75), (140, 80, 30)
+
+    pygame.draw.polygon(surface, (210, 45, 45), [(cx - 8, cy - 16), (cx - 2, cy - 16), (cx - 3, cy)])
+    pygame.draw.polygon(surface, (45, 115, 210), [(cx + 2, cy - 16), (cx + 8, cy - 16), (cx + 3, cy)])
+    pygame.draw.circle(surface, col, (cx, cy + 3), 12)
+    pygame.draw.circle(surface, border, (cx, cy + 3), 12, 2)
+    draw_star(surface, cx, cy + 3, 6, (255, 255, 255))
+
+
 def create_menu_bg():
     surf = pygame.Surface((WIDTH, HEIGHT))
     for y in range(HEIGHT):
@@ -256,6 +275,21 @@ class IconSpriteButton:
             pygame.draw.circle(surf, (255, 255, 255), (cx, cy), r, 3)
             pygame.draw.line(surf, (255, 255, 255), (cx, cy), (cx, cy - r // 2), 3)
             pygame.draw.line(surf, (255, 255, 255), (cx, cy), (cx + r // 2, cy), 3)
+        elif self.icon_type == "trophy":
+            pygame.draw.polygon(surf, (255, 225, 65), [(cx - r, cy - r + 2), (cx + r, cy - r + 2), (cx + r // 2, cy + 3), (cx - r // 2, cy + 3)])
+            pygame.draw.rect(surf, (255, 225, 65), (cx - 3, cy + 3, 6, r - 3))
+            pygame.draw.rect(surf, (255, 225, 65), (cx - r // 1.4, cy + r - 2, int(r * 1.4), 5), border_radius=2)
+            pygame.draw.circle(surf, (255, 225, 65), (cx - r, cy - r // 2), 5, 2)
+            pygame.draw.circle(surf, (255, 225, 65), (cx + r, cy - r // 2), 5, 2)
+        elif self.icon_type == "check":
+            pts = [(cx - r, cy), (cx - r // 4, cy + r - 2), (cx + r, cy - r + 3)]
+            pygame.draw.lines(surf, (255, 255, 255), False, pts, 5)
+        elif self.icon_type == "close":
+            pygame.draw.line(surf, (255, 255, 255), (cx - r + 2, cy - r + 2), (cx + r - 2, cy + r - 2), 5)
+            pygame.draw.line(surf, (255, 255, 255), (cx + r - 2, cy - r + 2), (cx - r + 2, cy + r - 2), 5)
+        elif self.icon_type == "trash":
+            pygame.draw.rect(surf, (255, 255, 255), (cx - r + 3, cy - r // 2, (r - 3) * 2, int(r * 1.5)), border_radius=2)
+            pygame.draw.line(surf, (255, 255, 255), (cx - r, cy - r // 2 - 2), (cx + r, cy - r // 2 - 2), 3)
         return surf
 
     def draw(self, surface, font):
@@ -437,27 +471,117 @@ class Game:
     def __init__(self):
         self.font = pygame.font.SysFont("arial", 18, bold=True)
         self.med_font = pygame.font.SysFont("arial", 26, bold=True)
-        self.big_font = pygame.font.SysFont("arial", 48, bold=True)
+        self.big_font = pygame.font.SysFont("arial", 46, bold=True)
         self.state = "menu"
+        self.player_name = ""
+        self.pending_size = 4
         self.grid_size = 4
+        self.filter_mode = 0
+        self.records = []
         self.best_scores = {4: 0, 6: 0, 8: 0, 10: 0}
         self.best_stars = {4: 0, 6: 0, 8: 0, 10: 0}
         self.level_cards = []
+        self.filter_tabs = []
         self.particles = []
         self.float_texts = []
         self.clouds = [[random.randint(0, WIDTH), random.randint(30, 220), random.uniform(0.2, 0.6), random.randint(45, 75)] for _ in range(5)]
+        self.load_records()
         self.setup_menu()
+
+    def load_records(self):
+        if os.path.exists(SAVE_FILE):
+            try:
+                with open(SAVE_FILE, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                dedup = {}
+                for r in raw:
+                    key = (r.get("name", "Player").strip().lower(), r.get("grid", 4))
+                    if key not in dedup or (r["score"], -r["time"]) > (dedup[key]["score"], -dedup[key]["time"]):
+                        dedup[key] = r
+                self.records = list(dedup.values())
+                self.records.sort(key=lambda r: (-r["score"], r["time"]))
+            except Exception:
+                self.records = []
+        self.recalc_bests()
+
+    def save_record(self, score, time_taken, stars):
+        name = self.player_name.strip() or "Player"
+        entry = {
+            "name": name,
+            "grid": self.grid_size,
+            "score": score,
+            "time": time_taken,
+            "moves": self.moves,
+            "stars": stars,
+        }
+        updated = False
+        for i, r in enumerate(self.records):
+            if r["name"].strip().lower() == name.lower() and r["grid"] == self.grid_size:
+                if (score, -time_taken) > (r["score"], -r["time"]):
+                    self.records[i] = entry
+                updated = True
+                break
+        if not updated:
+            self.records.append(entry)
+
+        self.records.sort(key=lambda r: (-r["score"], r["time"]))
+        self.records = self.records[:50]
+        try:
+            with open(SAVE_FILE, "w", encoding="utf-8") as f:
+                json.dump(self.records, f)
+        except Exception:
+            pass
+        self.recalc_bests()
+
+    def clear_records(self):
+        play_snd(SND_CLICK)
+        self.records.clear()
+        self.best_scores = {4: 0, 6: 0, 8: 0, 10: 0}
+        self.best_stars = {4: 0, 6: 0, 8: 0, 10: 0}
+        try:
+            if os.path.exists(SAVE_FILE):
+                os.remove(SAVE_FILE)
+        except Exception:
+            pass
+
+    def recalc_bests(self):
+        self.best_scores = {4: 0, 6: 0, 8: 0, 10: 0}
+        self.best_stars = {4: 0, 6: 0, 8: 0, 10: 0}
+        for g in [4, 6, 8, 10]:
+            sub = [r for r in self.records if r.get("grid") == g]
+            if sub:
+                self.best_scores[g] = max(r["score"] for r in sub)
+                self.best_stars[g] = max(r.get("stars", 1) for r in sub)
+
+    def ask_name_for_level(self, size):
+        play_snd(SND_CLICK)
+        self.pending_size = size
+        self.player_name = ""
+        self.state = "name_input"
 
     def setup_menu(self):
         configs = [
             (4, "apple", WIDTH // 2 - 340, 290),
             (6, "watermelon", WIDTH // 2 + 20, 290),
-            (8, "strawberry", WIDTH // 2 - 340, 460),
-            (10, "pineapple", WIDTH // 2 + 20, 460),
+            (8, "strawberry", WIDTH // 2 - 340, 455),
+            (10, "pineapple", WIDTH // 2 + 20, 455),
         ]
         self.level_cards.clear()
         for sz, fr, x, y in configs:
             self.level_cards.append(LevelCardButton(x, y, 320, 135, sz, fr))
+
+        self.btn_menu_trophy = IconSpriteButton(WIDTH - 90, 20, 62, "trophy", (225, 150, 20))
+        self.btn_name_ok = IconSpriteButton(WIDTH // 2 - 75, HEIGHT // 2 + 60, 66, "check", (46, 185, 85))
+        self.btn_name_cancel = IconSpriteButton(WIDTH // 2 + 9, HEIGHT // 2 + 60, 66, "close", (215, 70, 65))
+        self.btn_board_home = IconSpriteButton(WIDTH - 110, 82, 58, "home", (215, 70, 65))
+        self.btn_board_clear = IconSpriteButton(88, 82, 58, "trash", (190, 65, 65))
+
+        modes = [(0, "ALL"), (4, "4x4"), (6, "6x6"), (8, "8x8"), (10, "10x10")]
+        self.filter_tabs.clear()
+        start_x = (WIDTH - (5 * 104 + 4 * 14)) // 2
+        for i, (m, label) in enumerate(modes):
+            r = pygame.Rect(start_x + i * 118, 175, 104, 42)
+            self.filter_tabs.append((r, m, label))
 
     def start_game(self, size):
         play_snd(SND_CLICK)
@@ -477,6 +601,7 @@ class Game:
 
         self.max_time = float(TIME_LIMITS[size])
         self.time_left = self.max_time
+        self.finish_time = 0
         self.last_tick_sec = 999
         self.last_frame_tick = pygame.time.get_ticks()
         self.preview_until = self.last_frame_tick + 1800
@@ -492,8 +617,9 @@ class Game:
         self.btn_restart = IconSpriteButton(WIDTH - 144, 12, 54, "reload", (55, 145, 205))
         self.btn_menu = IconSpriteButton(WIDTH - 78, 12, 54, "home", (215, 70, 65))
 
-        self.btn_modal_again = IconSpriteButton(WIDTH // 2 - 80, HEIGHT // 2 + 95, 68, "reload", (46, 180, 95))
-        self.btn_modal_menu = IconSpriteButton(WIDTH // 2 + 12, HEIGHT // 2 + 95, 68, "home", (215, 70, 65))
+        self.btn_modal_again = IconSpriteButton(WIDTH // 2 - 115, HEIGHT // 2 + 95, 66, "reload", (46, 180, 95))
+        self.btn_modal_trophy = IconSpriteButton(WIDTH // 2 - 33, HEIGHT // 2 + 95, 66, "trophy", (225, 150, 20))
+        self.btn_modal_menu = IconSpriteButton(WIDTH // 2 + 49, HEIGHT // 2 + 95, 66, "home", (215, 70, 65))
 
         pairs_needed = (size * size) // 2
         shuffled_fruits = FRUITS[:]
@@ -557,23 +683,78 @@ class Game:
             return 2
         return 1
 
+    def handle_key(self, event):
+        if self.state == "name_input":
+            if event.key == pygame.K_RETURN:
+                if not self.player_name.strip():
+                    self.player_name = "Player"
+                self.start_game(self.pending_size)
+            elif event.key == pygame.K_ESCAPE:
+                play_snd(SND_CLICK)
+                self.state = "menu"
+            elif event.key == pygame.K_BACKSPACE:
+                self.player_name = self.player_name[:-1]
+            else:
+                if len(self.player_name) < 14 and event.unicode.isprintable():
+                    self.player_name += event.unicode
+        else:
+            if event.key == pygame.K_r and self.state == "playing":
+                self.ask_name_for_level(self.grid_size)
+            elif event.key == pygame.K_m:
+                self.state = "menu"
+
     def click(self, pos):
+        if self.state == "name_input":
+            if self.btn_name_ok.rect.collidepoint(pos):
+                if not self.player_name.strip():
+                    self.player_name = "Player"
+                self.start_game(self.pending_size)
+            elif self.btn_name_cancel.rect.collidepoint(pos):
+                play_snd(SND_CLICK)
+                self.state = "menu"
+            return
+
+        if self.state == "scoreboard":
+            if self.btn_board_home.rect.collidepoint(pos):
+                play_snd(SND_CLICK)
+                self.state = "menu"
+                return
+            if self.btn_board_clear.rect.collidepoint(pos):
+                self.clear_records()
+                return
+            for rect, m, _ in self.filter_tabs:
+                if rect.collidepoint(pos):
+                    play_snd(SND_CLICK)
+                    self.filter_mode = m
+                    return
+            return
+
         if self.state == "menu":
+            if self.btn_menu_trophy.rect.collidepoint(pos):
+                play_snd(SND_CLICK)
+                self.filter_mode = 0
+                self.state = "scoreboard"
+                return
             for lc in self.level_cards:
                 if lc.rect.collidepoint(pos):
-                    self.start_game(lc.grid_size)
+                    self.ask_name_for_level(lc.grid_size)
                     break
+
         elif self.state == "playing":
             if self.won or self.lost:
                 if self.btn_modal_again.rect.collidepoint(pos):
-                    self.start_game(self.grid_size)
+                    self.ask_name_for_level(self.grid_size)
+                elif self.btn_modal_trophy.rect.collidepoint(pos):
+                    play_snd(SND_CLICK)
+                    self.filter_mode = self.grid_size
+                    self.state = "scoreboard"
                 elif self.btn_modal_menu.rect.collidepoint(pos):
                     play_snd(SND_CLICK)
                     self.state = "menu"
                 return
 
             if self.btn_restart.rect.collidepoint(pos):
-                self.start_game(self.grid_size)
+                self.ask_name_for_level(self.grid_size)
                 return
             if self.btn_menu.rect.collidepoint(pos):
                 play_snd(SND_CLICK)
@@ -633,14 +814,12 @@ class Game:
 
                             if all(c.matched for c in self.cards):
                                 self.won = True
+                                self.finish_time = max(1, int(round(self.max_time - self.time_left)))
                                 time_bonus = int(self.time_left) * 15
                                 self.score += time_bonus
                                 play_snd(SND_WIN)
                                 stars = self.calc_stars()
-                                if self.score > self.best_scores[self.grid_size]:
-                                    self.best_scores[self.grid_size] = self.score
-                                if stars > self.best_stars[self.grid_size]:
-                                    self.best_stars[self.grid_size] = stars
+                                self.save_record(self.score, self.finish_time, stars)
                         else:
                             self.combo = 0
                             play_snd(SND_MISS)
@@ -720,27 +899,145 @@ class Game:
         txt = self.font.render(t_str, True, (255, 255, 255))
         surface.blit(txt, (bar_x + bar_w // 2 - txt.get_width() // 2, bar_y + 2))
 
+    def draw_scoreboard(self, surface):
+        surface.blit(MENU_BG, (0, 0))
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((15, 30, 15, 140))
+        surface.blit(overlay, (0, 0))
+
+        board = pygame.Rect(65, 65, WIDTH - 130, HEIGHT - 130)
+        pygame.draw.rect(surface, (95, 52, 18), (board.x + 8, board.y + 10, board.w, board.h), border_radius=30)
+        pygame.draw.rect(surface, (165, 100, 42), board, border_radius=30)
+        pygame.draw.rect(surface, (110, 62, 22), board, 6, border_radius=30)
+
+        inner = pygame.Rect(85, 160, WIDTH - 170, HEIGHT - 245)
+        pygame.draw.rect(surface, (250, 240, 215), inner, border_radius=22)
+        pygame.draw.rect(surface, (195, 145, 85), inner, 4, border_radius=22)
+
+        title = self.big_font.render("HALL OF FAME", True, (255, 235, 95))
+        shd = self.big_font.render("HALL OF FAME", True, (75, 40, 10))
+        surface.blit(shd, (WIDTH // 2 - title.get_width() // 2 + 3, 93))
+        surface.blit(title, (WIDTH // 2 - title.get_width() // 2, 90))
+
+        self.btn_board_home.draw(surface, self.font)
+        self.btn_board_clear.draw(surface, self.font)
+
+        for rect, m, label in self.filter_tabs:
+            active = self.filter_mode == m
+            col = (230, 145, 30) if active else (215, 195, 155)
+            pygame.draw.rect(surface, col, rect, border_radius=12)
+            pygame.draw.rect(surface, (130, 75, 25), rect, 3, border_radius=12)
+            tcol = (255, 255, 255) if active else (100, 60, 20)
+            txt = self.font.render(label, True, tcol)
+            surface.blit(txt, (rect.centerx - txt.get_width() // 2, rect.centery - txt.get_height() // 2))
+
+        headers = [("RANK", 150), ("PLAYER", 300), ("MODE", 480), ("SCORE", 615), ("FINISH TIME", 755)]
+        for h_text, hx in headers:
+            ht = self.font.render(h_text, True, (135, 75, 25))
+            surface.blit(ht, (hx - ht.get_width() // 2, 232))
+        pygame.draw.line(surface, (205, 165, 110), (105, 260), (WIDTH - 105, 260), 3)
+
+        filtered = [r for r in self.records if self.filter_mode == 0 or r.get("grid") == self.filter_mode]
+        filtered.sort(key=lambda r: (-r["score"], r["time"]))
+
+        if not filtered:
+            empty_txt = self.med_font.render("No winners yet! Play a level to claim 1st place!", True, (160, 110, 60))
+            surface.blit(empty_txt, (WIDTH // 2 - empty_txt.get_width() // 2, HEIGHT // 2 + 20))
+        else:
+            for idx, rec in enumerate(filtered[:9]):
+                ry = 272 + idx * 58
+                row_rect = pygame.Rect(105, ry, WIDTH - 210, 48)
+                if idx == 0:
+                    r_bg, r_bd = (255, 232, 145), (215, 160, 25)
+                elif idx == 1:
+                    r_bg, r_bd = (235, 240, 245), (160, 170, 180)
+                elif idx == 2:
+                    r_bg, r_bd = (245, 220, 195), (185, 120, 65)
+                else:
+                    r_bg, r_bd = (245, 232, 200), (215, 190, 145)
+
+                pygame.draw.rect(surface, r_bg, row_rect, border_radius=12)
+                pygame.draw.rect(surface, r_bd, row_rect, 2, border_radius=12)
+
+                if idx < 3:
+                    draw_medal(surface, 150, ry + 24, idx + 1)
+                else:
+                    rk = self.med_font.render(f"{idx + 1}", True, (110, 65, 25))
+                    surface.blit(rk, (150 - rk.get_width() // 2, ry + 10))
+
+                p_txt = self.med_font.render(str(rec["name"]), True, (85, 45, 10))
+                m_txt = self.font.render(f"{rec['grid']}x{rec['grid']}", True, (130, 80, 30))
+                s_txt = self.med_font.render(str(rec["score"]), True, (40, 145, 65))
+                t_txt = self.med_font.render(f"{rec['time']}s", True, (195, 95, 20))
+
+                surface.blit(p_txt, (300 - p_txt.get_width() // 2, ry + 10))
+                surface.blit(m_txt, (480 - m_txt.get_width() // 2, ry + 14))
+                surface.blit(s_txt, (615 - s_txt.get_width() // 2, ry + 10))
+                surface.blit(t_txt, (755 - t_txt.get_width() // 2, ry + 10))
+
     def draw(self, surface):
-        if self.state == "menu":
+        if self.state == "scoreboard":
+            self.draw_scoreboard(surface)
+            return
+
+        if self.state in ("menu", "name_input"):
             surface.blit(MENU_BG, (0, 0))
             for cx, cy, _, r in self.clouds:
                 pygame.draw.circle(surface, (255, 255, 255), (int(cx), int(cy)), r)
                 pygame.draw.circle(surface, (255, 255, 255), (int(cx - r * 0.6), int(cy + 8)), int(r * 0.75))
                 pygame.draw.circle(surface, (255, 255, 255), (int(cx + r * 0.6), int(cy + 8)), int(r * 0.75))
 
-            sign_rect = pygame.Rect(WIDTH // 2 - 280, 75, 560, 125)
+            self.btn_menu_trophy.draw(surface, self.font)
+
+            sign_rect = pygame.Rect(WIDTH // 2 - 280, 80, 560, 120)
             pygame.draw.rect(surface, (90, 50, 15), (sign_rect.x + 6, sign_rect.y + 8, sign_rect.w, sign_rect.h), border_radius=26)
             pygame.draw.rect(surface, (165, 100, 42), sign_rect, border_radius=26)
             pygame.draw.rect(surface, (110, 62, 22), sign_rect, 6, border_radius=26)
 
             shd = self.big_font.render("FRUIT MEMORY", True, (75, 40, 10))
             title = self.big_font.render("FRUIT MEMORY", True, (255, 235, 95))
-            surface.blit(shd, (WIDTH // 2 - title.get_width() // 2 + 3, 110))
-            surface.blit(title, (WIDTH // 2 - title.get_width() // 2, 107))
+            surface.blit(shd, (WIDTH // 2 - title.get_width() // 2 + 3, 115))
+            surface.blit(title, (WIDTH // 2 - title.get_width() // 2, 112))
+
+            if self.records:
+                top_champ = self.records[0]
+                champ_rect = pygame.Rect(WIDTH // 2 - 230, 218, 460, 46)
+                pygame.draw.rect(surface, (255, 238, 170), champ_rect, border_radius=14)
+                pygame.draw.rect(surface, (205, 145, 30), champ_rect, 3, border_radius=14)
+                draw_medal(surface, champ_rect.x + 28, champ_rect.centery, 1)
+                c_txt = self.font.render(
+                    f"1st Place: {top_champ['name']}  ({top_champ['score']} pts in {top_champ['time']}s)",
+                    True,
+                    (115, 60, 10),
+                )
+                surface.blit(c_txt, (champ_rect.x + 54, champ_rect.centery - c_txt.get_height() // 2))
 
             for lc in self.level_cards:
                 sz = lc.grid_size
                 lc.draw(surface, self.font, self.best_stars[sz], self.best_scores[sz])
+
+            if self.state == "name_input":
+                overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                overlay.fill((15, 30, 15, 195))
+                surface.blit(overlay, (0, 0))
+
+                modal = pygame.Rect(WIDTH // 2 - 235, HEIGHT // 2 - 155, 470, 310)
+                pygame.draw.rect(surface, (150, 90, 38), modal, border_radius=26)
+                pygame.draw.rect(surface, (250, 238, 205), (modal.x + 10, modal.y + 10, modal.w - 20, modal.h - 20), border_radius=20)
+
+                pr = self.med_font.render(f"ENTER NAME  ({self.pending_size}x{self.pending_size})", True, (115, 60, 15))
+                surface.blit(pr, (WIDTH // 2 - pr.get_width() // 2, modal.y + 32))
+
+                box = pygame.Rect(WIDTH // 2 - 175, HEIGHT // 2 - 38, 350, 58)
+                pygame.draw.rect(surface, (255, 255, 255), box, border_radius=14)
+                pygame.draw.rect(surface, (205, 135, 45), box, 4, border_radius=14)
+
+                cursor = "|" if (pygame.time.get_ticks() // 400) % 2 == 0 else ""
+                ntxt = self.med_font.render(self.player_name + cursor, True, (60, 35, 10))
+                surface.blit(ntxt, (box.centerx - ntxt.get_width() // 2, box.centery - ntxt.get_height() // 2))
+
+                self.btn_name_ok.draw(surface, self.font)
+                self.btn_name_cancel.draw(surface, self.font)
 
         elif self.state == "playing":
             surface.blit(GAME_BG, (0, 0))
@@ -750,11 +1047,11 @@ class Game:
             pygame.draw.rect(surface, (245, 225, 185), (hud_rect.x + 4, hud_rect.y + 4, hud_rect.w - 8, hud_rect.h - 8), border_radius=12)
 
             stat = self.med_font.render(
-                f"Score: {self.score}     Moves: {self.moves}     Combo: x{max(1, self.combo)}",
+                f"{self.player_name}   |   Score: {self.score}   |   Moves: {self.moves}",
                 True,
                 (105, 55, 15),
             )
-            surface.blit(stat, (hud_rect.x + 20, hud_rect.centery - stat.get_height() // 2))
+            surface.blit(stat, (hud_rect.x + 18, hud_rect.centery - stat.get_height() // 2))
 
             self.draw_timer_bar(surface)
 
@@ -799,7 +1096,7 @@ class Game:
                         draw_star(surface, WIDTH // 2 - 75 + i * 75, modal.y + 125, 28, scol)
 
                     s_txt = self.med_font.render(f"Final Score: {self.score}", True, (100, 55, 15))
-                    m_txt = self.font.render(f"Moves: {self.moves}   |   Time Left: {int(self.time_left)}s", True, (130, 80, 35))
+                    m_txt = self.font.render(f"Finished in: {self.finish_time}s   |   Moves: {self.moves}", True, (130, 80, 35))
                 else:
                     lose = self.big_font.render("TIME'S UP!", True, (215, 45, 45))
                     surface.blit(lose, (WIDTH // 2 - lose.get_width() // 2, modal.y + 32))
@@ -816,6 +1113,7 @@ class Game:
                 surface.blit(m_txt, (WIDTH // 2 - m_txt.get_width() // 2, modal.y + 225))
 
                 self.btn_modal_again.draw(surface, self.font)
+                self.btn_modal_trophy.draw(surface, self.font)
                 self.btn_modal_menu.draw(surface, self.font)
 
 
@@ -829,10 +1127,7 @@ def main():
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 game.click(event.pos)
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_r and game.state == "playing":
-                    game.start_game(game.grid_size)
-                elif event.key == pygame.K_m:
-                    game.state = "menu"
+                game.handle_key(event)
 
         game.update()
         game.draw(screen)
