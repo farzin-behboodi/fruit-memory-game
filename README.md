@@ -8,12 +8,12 @@ When you click on a card in `self.state = "playing"` the code flips it open. To 
 ## Screenshots
 
 <p align="center">
-  <img src="menu.png" width="420">
-  <img src="name.png" width="420">
+  <img src="images/menu.png" width="420">
+  <img src="images/name.png" width="420">
 </p>
 <p align="center">
-  <img src="gameplay.png" width="420">
-  <img src="scoreboard.png" width="420">
+  <img src="images/gameplay.png" width="420">
+  <img src="images/scoreboard.png" width="420">
 </p>
 
 ## Features
