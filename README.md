@@ -5,6 +5,20 @@ When we run `fruit-memory-game.py` on the computer it opens a 940x930 window usi
 
 In `self.state = "playing"` clicking on a card checks `not card.revealed and not card.matched`. If it is closed the code flips it and adds it to `self.selected`. When all cards match up we get `self.won = True` and `save_record()` writes the score in `leaderboard.json`.
 
+## Screenshots
+
+### Main Menu
+![Main Menu](menu.png)
+
+### Enter Player Name
+![Enter Name](name.png)
+
+### Game Screen
+![Gameplay](gameplay.png)
+
+### Hall of Fame (Scoreboard)
+![Scoreboard](scoreboard.png)
+
 ## Features
 
 Here are the main classes and functions in `fruit-memory-game.p` that run the board, power-ups and scoreboard.
