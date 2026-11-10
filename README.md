@@ -3,27 +3,24 @@
 ## introduction
 When we run `fruit-memory-game.py` on the computer it opens a 940x930 window using `pygame`. There is no need to use external files. When the window opens the game starts in the state `self.state = "menu"`. We have 4 level cards for 4x4, 6x6, 8x8 and 10x10 grids. You can type your name into `self.player_name` up to 14 letters in `self.state = "name_input"`. After clicking `btn_name_ok` the state goes to `self.state = "playing"` with the timer bar and the `self.cards` list where 16 fruits are drawn with `draw_fruit_graphic()`.
 
-In `self.state = "playing"` clicking on a card checks `not card.revealed and not card.matched`. If it is closed the code flips it and adds it to `self.selected`. When all cards match up we get `self.won = True` and `save_record()` writes the score in `leaderboard.json`.
+When you click on a card in `self.state = "playing"` the code flips it open. To win the round you must match all pairs before `self.time_left` hits 0 and `save_record()` saves your score in `leaderboard.json`.
 
 ## Screenshots
 
-### Main Menu
-![Main Menu](menu.png)
-
-### Enter Player Name
-![Enter Name](name.png)
-
-### Game Screen
-![Gameplay](gameplay.png)
-
-### Hall of Fame (Scoreboard)
-![Scoreboard](scoreboard.png)
+<p align="center">
+  <img src="menu.png" width="420">
+  <img src="name.png" width="420">
+</p>
+<p align="center">
+  <img src="gameplay.png" width="420">
+  <img src="scoreboard.png" width="420">
+</p>
 
 ## Features
 
 Here are the main classes and functions in `fruit-memory-game.p` that run the board, power-ups and scoreboard.
 
-`SAVE_FILE`. `self.records`: This keeps the top 50 scores inside `leaderboard.json`. In `load_records()` and `save_record()` the code sorts players by `(-r["score"], r["time"])` and updates `self.best_scores` and `self.best_stars`.
+`SAVE_FILE`. `self.records`: This keeps the top 50 scores inside `leaderboard.json`. The `load_records()` function loads the file at start and `save_record()` updates `self.best_scores` and `self.best_stars`.
 
 `draw_scoreboard()`. `draw_medal()`: Clicking `btn_menu_trophy` sets `self.state = "scoreboard"` to show the Hall of Fame. You can filter by `ALL`, `4x4`, `6x6`, `8x8` or `10x10`, and `btn_board_clear` deletes `leaderboard.json`.
 
